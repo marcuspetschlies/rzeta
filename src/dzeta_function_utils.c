@@ -7,7 +7,7 @@
 #include <gsl/gsl_sf_legendre.h>
 #include <gsl/gsl_integration.h>
 #include "init_zeta_function.h"
-#include "dzeta_function.h"
+#include "dzeta_function_utils.h"
 /*******************************************************************************
  * dvec = integer vector, P = 2 pi d / L
  *
@@ -48,6 +48,7 @@
 /***********************************************************
  * angular momentum functions
  ***********************************************************/
+
 double plm_norm[(_PLM_L_MAX+1)*(_PLM_L_MAX+1)];
 
 int dinit_plm_norm (void) {

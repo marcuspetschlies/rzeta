@@ -50,7 +50,7 @@ double dplm( unsigned int l, int m, double x);
 
 #define DZETA_EPSILON 1.e-14
 
-#define _PLM_L_MAX 4
+#define _PLM_L_MAX 6
 
 /*****************************************************************************************************************
  * Zeta function
@@ -63,7 +63,7 @@ double dplm( unsigned int l, int m, double x);
  *   epsAbs, epsRel - convergence criteria
  *****************************************************************************************************************/
 
-int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma, double A, double epsAbs, double epsRel, int Lmax) {
+int dzeta_function (double _Complex *zres, double q2, int l, int m, int*dvec, double gamma, double A, double epsAbs, double epsRel, int Lmax) {
 
 #define _PI_TI_SQRT_PI 5.568327996831707
 
@@ -88,16 +88,9 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
 
   int const parity_factor =  1 - (l % 2);
 
-  double int_parameters[3], int_l0m0_parameters;
+  double int_parameters[3];
 
-  double qnd, qr_rrInv;
-  double qterm1[2], qterm2[2], qterm1c[2], qterm2c[2], qterm3[3];
-  double qint_norm_var[2];
-  double qint_iterate_const=0.0, qint_integral_value=0.0;
-  double qint_l0m0_norm_const, qint_l0m0_add;
-  double qn[3];
-  double qtmp, qtmp1, qtmp2, qw[2], qw2[2];
-  double qr[3], qr_r, qr_rr, qr_costheta, qr_phi;
+  double qtmp, qtmp1, qtmp2;
 
   if ( refrot_list_is_initialized == 0 ) {
     fprintf(stdout, "# [dzeta_function] initialize refrot_list\n");
@@ -134,19 +127,9 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
     }
   }
 
-  double _Complex const zint_norm_const = power_of_i[l%4] * gamma * _PI_TI_SQRT_PI;
-
-  /* fprintf(stdout, "# [dzeta_function] int_norm_const = %e + I %e\n", qint_norm_const[0], qint_norm_const[1]); */
-
-
   /* q2 value */
   int_parameters[0] = q2;
-  int_l0m0_parameters  = q2;
   
-  /* initialize second integration */
-  double const qint_l0m0_norm_const = -qgamma * M_PI * 2.0 * q2 * q2;
-  double const qint_l0m0_add        =  qgamma * M_PI * ( 2.0 * q2 - 1.0 ) * exp(q2);
-
   /* initialize real and imaginary part of term 1 and 2 */
   double _Complex zterm1 = 0.;
   double _Complex zterm2 = 0.;
@@ -212,18 +195,18 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
       double qtmp2 = qr_rr - q2;
       /* fprintf(stdout, "# [dzeta_function]  %e %e  %e\n", qtmp, qtmp1, qtmp2); */
 
-      double _Complex const z = cexp( qtmp * I ) * qtmp1;
+      double _Complex const ztmp = cexp( qtmp * I ) * qtmp1;
 
       qtmp1 = exp( -qr_rr ) / qtmp2;
-      z *= qtmp1;
-      /* fprintf(stdout, "# [dzeta_function] z = %e   %e\n", creal(z), cimag(z) ); */
+      ztmp *= qtmp1;
+      // fprintf(stdout, "# [dzeta_function] ztmp = %e   %e\n", creal( ztmp ), cimag( ztmp ) );
 
-      zterm2 += z;
-      /* fprintf(stdout, "# [dzeta_function] term2 %3.0f %3.0f %3.0f \t %e \t %e\n", qn[0], qn[1], qn[2], qterm2[0], qterm2[1]); */
+      zterm2 += ztmp;
+      // fprintf(stdout, "# [dzeta_function] term2 %3.0f %3.0f %3.0f \t %e \t %e\n", qn[0], qn[1], qn[2], creal( zterm2 ), cimag( zterm2 ) );
 
       /*****************************************************************************************************************/
       /*****************************************************************************************************************/
-STOPPED HERE
+
       /*****************************************************************************************************************
        * FIRST TERM  *
        *****************************************************************************************************************/
@@ -235,7 +218,7 @@ STOPPED HERE
         qr[2] = -M_PI * ( qn[2] + qtmp * qdvec[2] ); 
 
         qr_rr    = _DSQR(qr);
-        qr_rrInv = 1.0 / qr_rr;
+        double const qr_rrInv = 1.0 / qr_rr;
         qr_r     = sqrt(qr_rr);
 
         if(qr_r < DZETA_EPSILON) {
@@ -273,7 +256,7 @@ STOPPED HERE
         }
         /* fprintf(stdout, "# [dzeta_function] integration 32 result   = %25.16e%25.16e\n", int_integral_32_value, int_integral_32_error); */
 
-        qint_iterate_const = exp(-(qr_rr - q2));
+        double const qint_iterate_const = exp(-(qr_rr - q2));
 
         qtmp1 = (double)int_integral_32_value;
         qtmp2 = (double)int_integral_12_value;
@@ -283,57 +266,56 @@ STOPPED HERE
           qtmp1 = qtmp2;
           qtmp2 = qtmp;
         }
-        qint_integral_value = qtmp2;
-        /* fprintf(stdout, "# [dzeta_function] integral value          = %25.16e\n", qint_integral_value); */
+        double const qint_integral_value = qtmp2;
+        // fprintf(stdout, "# [dzeta_function] integral value          = %25.16e\n", qint_integral_value);
 
-        /* TEST */
-/*
-        F.function = dintegrand_lp32;
-        int_parameters[2] = (double)l;
-        status = gsl_integration_qag (&F, 0., 1., int_epsabs, int_epsrel, int_limit, int_key, int_workspace, &int_integral_32_value, &int_integral_32_error);
-        if(status != 0) {
-          fprintf(stderr, "[dzeta_function] Error from qag, status was %d\n", status);
-          return(1);
-        }
-        fprintf(stdout, "# [dzeta_function] integration lp32 result = %25.16e%25.16e\n", int_integral_32_value, int_integral_32_error);
-*/
+        // TEST
+
+//        F.function = dintegrand_lp32;
+//        int_parameters[2] = (double)l;
+//        status = gsl_integration_qag (&F, 0., 1., int_epsabs, int_epsrel, int_limit, int_key, int_workspace, &int_integral_32_value, &int_integral_32_error);
+//        if(status != 0) {
+//          fprintf(stderr, "[dzeta_function] Error from qag, status was %d\n", status);
+//          return(1);
+//        }
+//        fprintf(stdout, "# [dzeta_function] integration lp32 result = %25.16e%25.16e\n", int_integral_32_value, int_integral_32_error);
+
 
         qtmp  = (double)m * qr_phi;
         qtmp1 = pow(qr_r, l) * dplm (l, m, qr_costheta);
 
-        qw[0] = qtmp1 * qint_integral_value;
-        qw[1] = sin( qtmp ) * qw[0];
-        qw[0] *= cos( qtmp );
-        /* fprintf(stdout, "# [dzeta_function] qw = %25.16e + I %25.16e\n", qw[0], qw[1]); */
+        double _Complex const qw = qtmp1 * qint_integral_value * cexp( I * qtmp );
+        // fprintf(stdout, "# [dzeta_function] qw = %25.16e + I %25.16e\n", creal( qw ), cimag ( qw ) );
 
         qtmp = M_PI * qA * qnd;
-        qint_norm_var[0] =  cos(qtmp) * (double)      parity_factor;
-        qint_norm_var[1] =  sin(qtmp) * (double)( 1 - parity_factor );
-        /* fprintf(stdout, "# [dzeta_function] qint_norm_var = %25.16e + I %25.16e\n", qint_norm_var[0], qint_norm_var[1]); */
+        double _Complex const qint_norm_var =  ( cos(qtmp) * (double)      parity_factor ) + I * ( sin(qtmp) * (double)( 1 - parity_factor ) );
+        // fprintf(stdout, "# [dzeta_function] qint_norm_var = %25.16e + I %25.16e\n", creal ( qint_norm_var ), cimag ( qint_norm_var ) );
 
-            
-        _DCO_EQ_CO_TI_CO(qw2, qw, qint_norm_var);
-        /* fprintf(stdout, "# [dzeta_function] qw2 = %25.16e + I %25.16e\n", qw2[0], qw2[1]); */
+        double _Complex const qw2 = qw * qint_norm_var;
 
-        _DKAHAN_SUM_CO_PL_CO(qterm1, qterm1c, qw2);
+        // fprintf(stdout, "# [dzeta_function] qw2 = %25.16e + I %25.16e\n", creal( qw2 ), cimag ( qw2 ) );
+        zterm1 += qw2;
 
 
-        /* fprintf(stdout, "# [dzeta_function] term1 %3.0f %3.0f %3.0f \t %25.16e \t %25.16e\n", qr[0], qr[1], qr[2], qterm1[0], qterm1[1]); */
-      }  /* end of if zeros_type < 3 */
+        // fprintf(stdout, "# [dzeta_function] term1 %3.0f %3.0f %3.0f \t %25.16e \t %25.16e\n", qr[0], qr[1], qr[2], creal(zterm1), cimag(term1) );
+      }  // end of if zeros_type < 3
 
-    }  /* end of loop on rotations and reflections */
+    }  // end of loop on rotations and reflections
 
-  }  /* end of loop on k1 */
-  }  /* end of loop on k2 */
+  }  // end of loop on k1
+  }  // end of loop on k2
 
-    /* fprintf(stdout, "# [dzeta_function] qconvergence %3d \t %25.16e \t %25.16e\n", k3, qterm2[0], qterm2[1]); */
+  // fprintf(stdout, "# [dzeta_function] convergence %3d \t %25.16e \t %25.16e\n", k3, creal( zterm2 ), cimag( zterm2) );
 
-  }  /* end of loop on k3 */
+  }  // end of loop on k3
 
   /*****************************************************************************************************************
    * subtraction for l = 0 and m = 0
    *****************************************************************************************************************/
   if(l == 0 && m == 0) {
+
+    double int_integral_l0m0_value = 0., int_integral_l0m0_error = 0.;
+    double int_l0m0_parameters = q2;
 
     F.function = dint_l0m0_kernelFunction;
     F.params   = (void*)(&int_l0m0_parameters);
@@ -342,33 +324,36 @@ STOPPED HERE
       fprintf(stderr, "[dzeta_function] Error from qag, status was %d\n", status);
       return(1);
     }
-    qtmp = qint_l0m0_norm_const * (double)int_integral_l0m0_value + qint_l0m0_add;
-    /* TEST */
-    /* fprintf(stdout, "# [dzeta_function] (l=0 m=0) modified integral value %16.7e  %25.16e\n", q2, qtmp); */
-    qterm3[0] = qtmp;
-    qterm3[1] = 0.;
-  }
+ 
+    double const qint_l0m0_norm_const = -qgamma * M_PI * 2.0 * q2 * q2;
+    double const qint_l0m0_add        =  qgamma * M_PI * ( 2.0 * q2 - 1.0 ) * exp(q2);
 
-  if(int_workspace != NULL) {
-    gsl_integration_workspace_free(int_workspace);
-  }
+    double const qtmp = qint_l0m0_norm_const * (double)int_integral_l0m0_value + qint_l0m0_add;
+    // TEST
+    // fprintf(stdout, "# [dzeta_function] (l=0 m=0) modified integral value %16.7e  %25.16e\n", q2, qtmp);
+    zterm3 = qtmp;
+  }  // end of if l == 0 and m == 0
 
-  /* multiply qterm2 with exp( q2 ) */
-  qtmp = exp(  q2 );
-  _DCO_TI_EQ_RE(qterm2, qtmp);
+  /*****************************************************************************************************************
+   * NOTE: int_workspace is declared static, so let's just keep it
+   *****************************************************************************************************************/
+  //if(int_workspace != NULL) {
+  //  gsl_integration_workspace_free(int_workspace);
+  //}
 
-  /* multiply qterm1 with constant integral normalization */
-  _DCO_EQ_CO(qw, qterm1);
-  _DCO_EQ_CO_TI_CO(qterm1, qw, qint_norm_const);
+  // multiply zterm2 with exp( q2 )
+  zterm2 *= exp(  q2 ); 
 
-  z[0] = qterm1[0] + qterm2[0] + qterm3[0];  
-  z[1] = qterm1[1] + qterm2[1] + qterm3[1];
+  // multiply zterm1 with constant integral normalization
+  zterm1 *= power_of_i[l%4] * gamma * _PI_TI_SQRT_PI;
+
+  // add up all three terms
+  *zres = zterm1 + zterm2 + zterm3;
   
-  /* TEST */
-/*
-  fprintf(stdout, "# [zeta_function] term1 %e + I %e\n", qterm1[0], qterm1[1]);
-  fprintf(stdout, "# [zeta_function] term2 %e + I %e\n", qterm2[0], qterm2[1]);
-  fprintf(stdout, "# [zeta_function] term3 %e + I %e\n", qterm3[0], qterm3[1]);
-*/
+  // TEST
+  //fprintf(stdout, "# [zeta_function] term1 %e + I %e\n", creal( zterm1 ), cimag( zterm1 ) );
+  //fprintf(stdout, "# [zeta_function] term2 %e + I %e\n", creal( zterm2 ), cimag( zterm2 ) );
+  //fprintf(stdout, "# [zeta_function] term3 %e + I %e\n", creal( zterm3 ), cimag( zterm3 ) );
+
   return(0);
-}  /* end of dzeta_function */
+}  // end of dzeta_function

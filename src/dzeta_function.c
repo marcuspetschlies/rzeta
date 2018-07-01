@@ -1,3 +1,6 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
 #include <gsl/gsl_linalg.h>
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_math.h>
@@ -424,6 +427,8 @@ double dint_l0m0_kernelFunction2 (double t, void*params) {
 
 int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma, double A, double epsAbs, double epsRel, int Lmax) {
 
+  time_t g_the_time;
+
   const double int_epsabs = 1.e-08;
   const double int_epsrel = 1.e-07;
   const size_t int_limit  = 500000;
@@ -465,6 +470,9 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
   double ratime, retime;
 
   FILE * ofs = fopen ( "dzeta_function.tmr" , "a" );
+  g_the_time = time(NULL);
+  fprintf( ofs, "# [dzeta_function] %s", ctime(&g_the_time));
+
 
   if ( refrot_list_is_initialized == 0 ) {
     fprintf(stdout, "# [dzeta_function] initialize refrot_list\n");

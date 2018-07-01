@@ -47,6 +47,7 @@
 
 double dplm( unsigned int l, int m, double x);
 
+#define _GET_TIME ((double)clock() / CLOCKS_PER_SEC)
 
 #ifdef DZETA_USE_KAHAN
 
@@ -461,16 +462,28 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
   double qtmp, qtmp1, qtmp2, qw[2], qw2[2];
   double qr[3], qr_r, qr_rr, qr_costheta, qr_phi;
 
+  double ratime, retime;
+
+  FILE * ofs = fopen ( "dzeta_function.tmr" , "a" );
+
   if ( refrot_list_is_initialized == 0 ) {
     fprintf(stdout, "# [dzeta_function] initialize refrot_list\n");
+    ratime = _GET_TIME;
     init_refrot_list (rotref_list, rotref_selection_permutation, rotref_selection_sign, rotref_number);
     refrot_list_is_initialized = 1;
+    retime = _GET_TIME;
+    fprintf ( ofs, "# [dzeta_function] time for init_refrot_list = %e seconds\n", retime-ratime );
   }
   if ( plm_norm_is_initialized == 0 ) {
     fprintf(stdout, "# [dzeta_function] initialize plm_norm\n");
+    ratime = _GET_TIME;
     dinit_plm_norm();
     plm_norm_is_initialized = 1;
+    retime = _GET_TIME;
+    fprintf ( ofs, "# [dzeta_function] time for dinit_plm_norm = %e seconds\n", retime-ratime );
   }
+
+  ratime = _GET_TIME;
 
   qdvec[0] = (double)dvec[0];
   qdvec[1] = (double)dvec[1];
@@ -527,6 +540,8 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
   _DCO_EQ_ZERO( qterm2c );
   _DCO_EQ_ZERO( qterm3  );
 
+  retime = _GET_TIME;
+  fprintf ( ofs, "# [dzeta_function] time for initialization = %e seconds\n", retime-ratime );
 
   for(k3=0; k3 <= Lmax; k3++) {
     nvec[2] = k3;
@@ -541,6 +556,8 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
     /* fprintf(stdout, "# [dzeta_function] %3d%3d%3d\t%3d%3d\t%3d\n", k1, k2, k3, lessequals_type, zeros_type, rotref_number[lessequals_type][zeros_type]); */
 
     for(irotref = 0; irotref < rotref_number[lessequals_type][zeros_type]; irotref++) {
+
+      ratime = _GET_TIME;
 
       qn[0] = (double)( nvec[ rotref_selection_permutation[lessequals_type][zeros_type][irotref][0] ] * rotref_selection_sign[lessequals_type][zeros_type][irotref][0] );
       qn[1] = (double)( nvec[ rotref_selection_permutation[lessequals_type][zeros_type][irotref][1] ] * rotref_selection_sign[lessequals_type][zeros_type][irotref][1] );
@@ -579,6 +596,11 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
 
       /* fprintf(stdout, "# [dzeta_function] %e %e %e \t %e %e\t %e %e \n", qr[0], qr[1], qr[2], qr_r, qr_rr, qr_costheta, qr_phi); */
 
+      retime = _GET_TIME;
+      fprintf ( ofs, "# [dzeta_function] second term geometry = %e seconds\n", retime-ratime );
+
+      ratime = _GET_TIME;
+
       qtmp  = (double)m * qr_phi;
       qtmp1 = pow(qr_r, (double)l ) * dplm(l, m, qr_costheta);
       qtmp2 = qr_rr - q2;
@@ -594,12 +616,17 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
       _DKAHAN_SUM_CO_PL_CO(qterm2, qterm2c, qw);
       /* fprintf(stdout, "# [dzeta_function] term2 %3.0f %3.0f %3.0f \t %e \t %e\n", qn[0], qn[1], qn[2], qterm2[0], qterm2[1]); */
 
+      retime = _GET_TIME;
+      fprintf ( ofs, "# [dzeta_function] second term calculation = %e seconds\n", retime-ratime );
 
 
       /***************
        * FIRST TERM  *
        ***************/
       if(zeros_type < 3) {
+
+        ratime = _GET_TIME;
+
         qtmp = qnd * qddInv * ( qgamma - 1.0 );
 
         qr[0] = -M_PI * ( qn[0] + qtmp * qdvec[0] ); 
@@ -624,7 +651,12 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
           }
         }
 
+        retime = _GET_TIME;
+        fprintf ( ofs, "# [dzeta_function] first term geometry = %e seconds\n", retime-ratime );
+
         /* fprintf(stdout, "# [dzeta_function] qr=(%e, %e, %e) qr_r = %e qr_costheta = %e qr_phi = %e qr_rr = %e\n", qr[0], qr[1], qr[2], qr_r, qr_costheta, qr_phi, qr_rr); */
+
+        ratime = _GET_TIME;
 
         int_parameters[1] = (double)qr_rr;
         F.params          = (void*)int_parameters;
@@ -637,13 +669,24 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
         }
         /* fprintf(stdout, "# [dzeta_function] integration 12 result   = %25.16e%25.16e\n", int_integral_12_value, int_integral_12_error); */
 
+        retime = _GET_TIME;
+        fprintf ( ofs, "# [dzeta_function] first term integral12 = %e seconds\n", retime-ratime );
+
+        ratime = _GET_TIME;
+
         F.function = dintegrand_32;
         status = gsl_integration_qag (&F, 0., 1., int_epsabs, int_epsrel, int_limit, int_key, int_workspace, &int_integral_32_value, &int_integral_32_error);
         if(status != 0) {
           fprintf(stderr, "[dzeta_function] Error from qag, status was %d\n", status);
           return(1);
         }
+        
+        retime = _GET_TIME;
+        fprintf ( ofs, "# [dzeta_function] first term integral32 = %e seconds\n", retime-ratime );
+
         /* fprintf(stdout, "# [dzeta_function] integration 32 result   = %25.16e%25.16e\n", int_integral_32_value, int_integral_32_error); */
+
+        ratime = _GET_TIME;
 
         qint_iterate_const = exp(-(qr_rr - q2));
 
@@ -656,6 +699,10 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
           qtmp2 = qtmp;
         }
         qint_integral_value = qtmp2;
+
+        retime = _GET_TIME;
+        fprintf ( ofs, "# [dzeta_function] first term iterate = %e seconds\n", retime-ratime );
+
         /* fprintf(stdout, "# [dzeta_function] integral value          = %25.16e\n", qint_integral_value); */
 
         /* TEST */
@@ -669,6 +716,7 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
         }
         fprintf(stdout, "# [dzeta_function] integration lp32 result = %25.16e%25.16e\n", int_integral_32_value, int_integral_32_error);
 */
+        ratime = _GET_TIME;
 
         qtmp  = (double)m * qr_phi;
         qtmp1 = pow(qr_r, l) * dplm (l, m, qr_costheta);
@@ -689,6 +737,8 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
 
         _DKAHAN_SUM_CO_PL_CO(qterm1, qterm1c, qw2);
 
+        retime = _GET_TIME;
+        fprintf ( ofs, "# [dzeta_function] first term finalize = %e seconds\n", retime-ratime );
 
         /* fprintf(stdout, "# [dzeta_function] term1 %3.0f %3.0f %3.0f \t %25.16e \t %25.16e\n", qr[0], qr[1], qr[2], qterm1[0], qterm1[1]); */
       }  /* end of if zeros_type < 3 */
@@ -705,6 +755,8 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
   /* subtraction for l = 0 and m = 0 */
   if(l == 0 && m == 0) {
 
+    ratime = _GET_TIME;
+
     F.function = dint_l0m0_kernelFunction;
     F.params   = (void*)(&int_l0m0_parameters);
     status = gsl_integration_qag (&F, 0., 1., int_epsabs, int_epsrel, int_limit, int_key, int_workspace, &int_integral_l0m0_value, &int_integral_l0m0_error);
@@ -712,6 +764,10 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
       fprintf(stderr, "[dzeta_function] Error from qag, status was %d\n", status);
       return(1);
     }
+
+    retime = _GET_TIME;
+    fprintf ( ofs, "# [dzeta_function] third term integral = %e seconds\n", retime-ratime );
+
     qtmp = qint_l0m0_norm_const * (double)int_integral_l0m0_value + qint_l0m0_add;
     /* TEST */
     /* fprintf(stdout, "# [dzeta_function] (l=0 m=0) modified integral value %16.7e  %25.16e\n", q2, qtmp); */
@@ -722,6 +778,8 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
   if(int_workspace != NULL) {
     gsl_integration_workspace_free(int_workspace);
   }
+
+  ratime = _GET_TIME;
 
   /* multiply qterm2 with exp( q2 ) */
   qtmp = exp(  q2 );
@@ -734,11 +792,15 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
   z[0] = qterm1[0] + qterm2[0] + qterm3[0];  
   z[1] = qterm1[1] + qterm2[1] + qterm3[1];
   
+  retime = _GET_TIME;
+  fprintf ( ofs, "# [dzeta_function] finalize = %e seconds\n", retime-ratime );
+
   /* TEST */
 /*
   fprintf(stdout, "# [zeta_function] term1 %e + I %e\n", qterm1[0], qterm1[1]);
   fprintf(stdout, "# [zeta_function] term2 %e + I %e\n", qterm2[0], qterm2[1]);
   fprintf(stdout, "# [zeta_function] term3 %e + I %e\n", qterm3[0], qterm3[1]);
 */
+  fclose ( ofs );
   return(0);
 }  /* end of dzeta_function */

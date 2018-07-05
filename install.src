@@ -1,11 +1,11 @@
 # source this file to set the environment variables before calling R CMD INSTALL
 
 # gsl can be downloaded from https://www.gnu.org/software/gsl/
+export LD_LIBRARY_PATH=${GSL_DIR}/lib/:${QUADMATH_LIB_DIR}/:$LD_LIBRARY_PATH
 
-# export GSL_DIR=/home/marcuspe/software/gsl/gsl-1.8/build.14.04.1-Ubuntu/
-export GSL_DIR=/home/marcuspe/software/gsl/gsl-2.4/build.14.04.1-Ubuntu/
+export GSL_DIR=${HOME}/software/gsl/gsl-1.8/build-debian
 
-export QUADMATH_LIB_DIR=/usr/lib/gcc/x86_64-linux-gnu/4.8/
-export QUADMATH_INCLUDE_DIR=/usr/lib/gcc/x86_64-linux-gnu/4.8/include/
+export QUADMATH_LIB_DIR=/usr/lib/gcc/x86_64-linux-gnu/6/
+export QUADMATH_INCLUDE_DIR=/usr/lib/gcc/x86_64-linux-gnu/6/include/
 
 export LD_LIBRARY_PATH=${GSL_DIR}/lib/:${QUADMATH_LIB_DIR}/:$LD_LIBRARY_PATH

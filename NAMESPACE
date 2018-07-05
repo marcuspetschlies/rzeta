@@ -1,2 +1,2 @@
-export(QZeta, DZeta)
+export(QZeta, DZeta, LuescherZeta)
 useDynLib(rzeta)

@@ -524,7 +524,7 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
   for(k1=0; k1 <= k2; k1++) {
     num++;
   }}}
-  int *nvec=(int *)malloc(3*num);
+  int *nvec=(int *)malloc(sizeof(int)*3*num);
   if (nvec == NULL){
     fprintf(stderr,"# [dzeta_function] Not enough memory to store nvec\n");
     exit(1);

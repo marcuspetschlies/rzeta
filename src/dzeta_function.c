@@ -544,7 +544,7 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
 {
 
   int num_threads=omp_get_num_threads();
-  printf("num_threads %d\n", num_threads);
+  //printf("num_threads %d\n", num_threads);
   gsl_integration_workspace *int_workspace_local = NULL;
   /* initialize first integration */
   if( (int_workspace_local = gsl_integration_workspace_alloc ( (size_t)(int_limit+2))) == NULL ) {
@@ -571,12 +571,12 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
   double int_integral_12_value, int_integral_12_error, int_integral_32_value, int_integral_32_error;
   double qr[3], qr_r, qr_rr, qr_costheta, qr_phi;
   int id = omp_get_thread_num();
-  printf("num=%d\n",num);
+ // printf("num=%d\n",num);
   for ( int i=id; i<num; i+=num_threads){
     int k1_local=nvec[3*i+0];
     int k2_local=nvec[3*i+1];
     int k3_local=nvec[3*i+2];
-    printf("k1=%d,k2=%d,k3=%d\n",k1_local,k2_local,k3_local);
+   // printf("k1=%d,k2=%d,k3=%d\n",k1_local,k2_local,k3_local);
     int nvec_local[3];
     int lessequals_type, zeros_type;
     double qn[3];
@@ -609,7 +609,7 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
        * SECOND TERM *
        ***************/
       qtmp  = qnd * qddInv;
-      printf("qtmp %e\n",qtmp);
+      //printf("qtmp %e\n",qtmp);
 
       qr[0] = qn[0] + qtmp * qdvecGammaInvMinusOne[0] + qshift[0];
       qr[1] = qn[1] + qtmp * qdvecGammaInvMinusOne[1] + qshift[1];
@@ -711,7 +711,7 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
           qtmp2 = qtmp;
         }
         qint_integral_value = qtmp2;
-        printf("qint_integral_value %e\n",qint_integral_value);
+      //  printf("qint_integral_value %e\n",qint_integral_value);
         /* fprintf(stdout, "# [dzeta_function] integral value          = %25.16e\n", qint_integral_value); */
 
         /* TEST */
@@ -752,9 +752,9 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
     }  /* end of loop on rotations and reflections */
 
   } /* end of for loop */
-//  if(int_workspace_local != NULL) {
-//    gsl_integration_workspace_free(int_workspace_local);
-//  }
+  if(int_workspace_local != NULL) {
+    gsl_integration_workspace_free(int_workspace_local);
+  }
   #pragma omp critical
   {
     _DKAHAN_SUM_CO_PL_CO(qterm1, qterm1c, qterm1_local);

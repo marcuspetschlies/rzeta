@@ -1,3 +1,4 @@
+#include <omp.h>
 #include <gsl/gsl_linalg.h>
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_math.h>
@@ -423,6 +424,7 @@ double dint_l0m0_kernelFunction2 (double t, void*params) {
 
 int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma, double A, double epsAbs, double epsRel, int Lmax) {
 
+  int i_global;
   const double int_epsabs = 1.e-08;
   const double int_epsrel = 1.e-07;
   const size_t int_limit  = 500000;
@@ -436,30 +438,24 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
   static int refrot_list_is_initialized = 0;
   static int plm_norm_is_initialized = 0;
 
-  int k1, k2, k3, status, i, irotref;
-  int nvec[3];
+  int k1, k2, k3, status;
   double qgamma    = (double)gamma;
   double qgammaInv = 1.0 / qgamma;
   double qA        = (double)A;
+  double qtmp_global;
 
   gsl_integration_workspace *int_workspace = NULL;
   gsl_function F;
 
   int parity_factor =  1 - (l % 2);
-  int lessequals_type, zeros_type;
-  double int_parameters[3], int_l0m0_parameters;
+  double int_l0m0_parameters;
   double int_integral_l0m0_value, int_integral_l0m0_error;
-  double int_integral_12_value, int_integral_12_error, int_integral_32_value, int_integral_32_error;
 
-  double qdvec[3], qnd, qddInv, qr_rrInv, qdd;
-  double qterm1[2], qterm2[2], qterm1c[2], qterm2c[2], qterm3[3];
+  double qdvec[3], qddInv, qdd;
+  double qterm1[2], qterm2[2], qterm3[3];
   double qdvecGammaInvMinusOne[3];
-  double qint_norm_const[2], qint_norm_var[2];
-  double qint_iterate_const=0.0, qint_integral_value=0.0;
   double qint_l0m0_norm_const, qint_l0m0_add;
-  double qshift[3], qn[3];
-  double qtmp, qtmp1, qtmp2, qw[2], qw2[2];
-  double qr[3], qr_r, qr_rr, qr_costheta, qr_phi;
+  double qshift[3];
 
   if ( refrot_list_is_initialized == 0 ) {
     fprintf(stdout, "# [dzeta_function] initialize refrot_list\n");
@@ -493,28 +489,25 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
     return(1);
   }
 
-  qtmp = qgamma * M_PI * sqrt(M_PI);
-  i = l % 4;
-  if(i == 0) {
-    qint_norm_const[0] = qtmp;
+  qtmp_global = qgamma * M_PI * sqrt(M_PI);
+  i_global = l % 4;
+  double qint_norm_const[2]; 
+  if(i_global == 0) {
+    qint_norm_const[0] = qtmp_global;
     qint_norm_const[1] = 0.0;
-  } else if (i == 1) {
+  } else if (i_global == 1) {
     qint_norm_const[0] = 0.0;
-    qint_norm_const[1] = -qtmp;
-  } else if (i == 2) {
-    qint_norm_const[0] = -qtmp;
+    qint_norm_const[1] = -qtmp_global;
+  } else if (i_global == 2) {
+    qint_norm_const[0] = -qtmp_global;
     qint_norm_const[1] = 0.0;
   } else {
     qint_norm_const[0] = 0.0;
-    qint_norm_const[1] = qtmp;
+    qint_norm_const[1] = qtmp_global;
   }
 
   /* fprintf(stdout, "# [dzeta_function] int_norm_const = %e + I %e\n", qint_norm_const[0], qint_norm_const[1]); */
-
-
-  /* q2 value */
-  int_parameters[0] = q2;
-  
+ 
   /* initialize second integration */
   qint_l0m0_norm_const = -qgamma * M_PI * 2.0 * q2 * q2;
   qint_l0m0_add        =  qgamma * M_PI * ( 2.0 * q2 - 1.0 ) * exp(q2);
@@ -522,29 +515,90 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
 
   /* initialize real and imaginary part of term 1 and 2 */
   _DCO_EQ_ZERO( qterm1  );
-  _DCO_EQ_ZERO( qterm1c );
   _DCO_EQ_ZERO( qterm2  );
-  _DCO_EQ_ZERO( qterm2c );
   _DCO_EQ_ZERO( qterm3  );
 
-
+  int num=0;
   for(k3=0; k3 <= Lmax; k3++) {
-    nvec[2] = k3;
+  for(k2=0; k2 <= k3; k2++) {
+  for(k1=0; k1 <= k2; k1++) {
+    num++;
+  }}}
+  int *nvec=(int *)malloc(sizeof(int)*3*num);
+  if (nvec == NULL){
+    fprintf(stderr,"# [dzeta_function] Not enough memory to store nvec\n");
+    exit(1);
+  }
+  num=0;
+  for(k3=0; k3 <= Lmax; k3++) {
   for(k2=0; k2 <= k3;    k2++) {
-    nvec[1] = k2;
   for(k1=0; k1 <= k2;    k1++) {
-    nvec[0] = k1;
+    nvec[3*num+0]=k1;
+    nvec[3*num+1]=k2;
+    nvec[3*num+2]=k3;
+    num++;
+  }}}
+  
 
-    lessequals_type = 2*(int)(k1 < k2) + (int)(k2 < k3);
-    zeros_type  = (int)(k1 ==  0) + (int)(k2 ==  0) + (int)(k3 ==  0);
+#pragma omp parallel 
+{
+
+  int num_threads=omp_get_num_threads();
+  //printf("num_threads %d\n", num_threads);
+  gsl_integration_workspace *int_workspace_local = NULL;
+  /* initialize first integration */
+  if( (int_workspace_local = gsl_integration_workspace_alloc ( (size_t)(int_limit+2))) == NULL ) {
+    fprintf(stderr, "# [dzeta_function] Error from gsl_integration_workspace_alloc\n");
+    exit(1);
+  }
+
+  double qint_iterate_const=0.0;
+  gsl_function F_local;
+
+  double qterm1_local[2];
+  double qterm2_local[2];
+  double qint_integral_value=0.0;
+  double qr_rrInv;
+
+  int status_local;
+  _DCO_EQ_ZERO( qterm1_local  );
+  _DCO_EQ_ZERO( qterm2_local  );
+
+  double int_parameters[3];
+  double qint_norm_var[2];
+  double qterm1c[2],qterm2c[2];
+  double qtmp1, qtmp2, qw[2], qw2[2];
+  double int_integral_12_value, int_integral_12_error, int_integral_32_value, int_integral_32_error;
+  double qr[3], qr_r, qr_rr, qr_costheta, qr_phi;
+  int id = omp_get_thread_num();
+ // printf("num=%d\n",num);
+  for ( int i=id; i<num; i+=num_threads){
+    int k1_local=nvec[3*i+0];
+    int k2_local=nvec[3*i+1];
+    int k3_local=nvec[3*i+2];
+   // printf("k1=%d,k2=%d,k3=%d\n",k1_local,k2_local,k3_local);
+    int nvec_local[3];
+    int lessequals_type, zeros_type;
+    double qn[3];
+    double qnd,qtmp;
+
+    /* q2 value */
+    int_parameters[0] = q2;
+    _DCO_EQ_ZERO( qterm1c );
+    _DCO_EQ_ZERO( qterm2c );
+    nvec_local[0]=k1_local;
+    nvec_local[1]=k2_local;
+    nvec_local[2]=k3_local;
+    lessequals_type = 2*(int)(k1_local < k2_local) + (int)(k2_local < k3_local);
+    zeros_type  = (int)(k1_local ==  0) + (int)(k2_local ==  0) + (int)(k3_local ==  0);
 
     /* fprintf(stdout, "# [dzeta_function] %3d%3d%3d\t%3d%3d\t%3d\n", k1, k2, k3, lessequals_type, zeros_type, rotref_number[lessequals_type][zeros_type]); */
 
-    for(irotref = 0; irotref < rotref_number[lessequals_type][zeros_type]; irotref++) {
+    for(int irotref = 0; irotref < rotref_number[lessequals_type][zeros_type]; irotref++) {
 
-      qn[0] = (double)( nvec[ rotref_selection_permutation[lessequals_type][zeros_type][irotref][0] ] * rotref_selection_sign[lessequals_type][zeros_type][irotref][0] );
-      qn[1] = (double)( nvec[ rotref_selection_permutation[lessequals_type][zeros_type][irotref][1] ] * rotref_selection_sign[lessequals_type][zeros_type][irotref][1] );
-      qn[2] = (double)( nvec[ rotref_selection_permutation[lessequals_type][zeros_type][irotref][2] ] * rotref_selection_sign[lessequals_type][zeros_type][irotref][2] );
+      qn[0] = (double)( nvec_local[ rotref_selection_permutation[lessequals_type][zeros_type][irotref][0] ] * rotref_selection_sign[lessequals_type][zeros_type][irotref][0] );
+      qn[1] = (double)( nvec_local[ rotref_selection_permutation[lessequals_type][zeros_type][irotref][1] ] * rotref_selection_sign[lessequals_type][zeros_type][irotref][1] );
+      qn[2] = (double)( nvec_local[ rotref_selection_permutation[lessequals_type][zeros_type][irotref][2] ] * rotref_selection_sign[lessequals_type][zeros_type][irotref][2] );
 
 
       /* fprintf(stdout, "# [dzeta_function] %3d%3d%3d\t%3d\t%3.0f %3.0f %3.0f\n", k1, k2, k3, irotref, qn[0], qn[1], qn[2]); */
@@ -555,6 +609,7 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
        * SECOND TERM *
        ***************/
       qtmp  = qnd * qddInv;
+      //printf("qtmp %e\n",qtmp);
 
       qr[0] = qn[0] + qtmp * qdvecGammaInvMinusOne[0] + qshift[0];
       qr[1] = qn[1] + qtmp * qdvecGammaInvMinusOne[1] + qshift[1];
@@ -591,7 +646,7 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
       _DCO_TI_EQ_RE( qw, qtmp1 );
       /* fprintf(stdout, "# [dzeta_function] qw = %e   %e\n", qw[0], qw[1]); */
 
-      _DKAHAN_SUM_CO_PL_CO(qterm2, qterm2c, qw);
+      _DKAHAN_SUM_CO_PL_CO(qterm2_local, qterm2c, qw);
       /* fprintf(stdout, "# [dzeta_function] term2 %3.0f %3.0f %3.0f \t %e \t %e\n", qn[0], qn[1], qn[2], qterm2[0], qterm2[1]); */
 
 
@@ -627,21 +682,21 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
         /* fprintf(stdout, "# [dzeta_function] qr=(%e, %e, %e) qr_r = %e qr_costheta = %e qr_phi = %e qr_rr = %e\n", qr[0], qr[1], qr[2], qr_r, qr_costheta, qr_phi, qr_rr); */
 
         int_parameters[1] = (double)qr_rr;
-        F.params          = (void*)int_parameters;
+        F_local.params          = (void*)int_parameters;
   
-        F.function = dintegrand_12;
-        status = gsl_integration_qag (&F, 0., 1., int_epsabs, int_epsrel, int_limit, int_key, int_workspace, &int_integral_12_value, &int_integral_12_error);
-        if(status != 0) {
-          fprintf(stderr, "[dzeta_function] Error from qag, status was %d\n", status);
-          return(1);
+        F_local.function = dintegrand_12;
+        status_local = gsl_integration_qag (&F_local, 0., 1., int_epsabs, int_epsrel, int_limit, int_key, int_workspace_local, &int_integral_12_value, &int_integral_12_error);
+        if(status_local != 0) {
+          fprintf(stderr, "[dzeta_function] Error from qag, status was %d\n", status_local);
+          exit(1);
         }
         /* fprintf(stdout, "# [dzeta_function] integration 12 result   = %25.16e%25.16e\n", int_integral_12_value, int_integral_12_error); */
 
-        F.function = dintegrand_32;
-        status = gsl_integration_qag (&F, 0., 1., int_epsabs, int_epsrel, int_limit, int_key, int_workspace, &int_integral_32_value, &int_integral_32_error);
-        if(status != 0) {
-          fprintf(stderr, "[dzeta_function] Error from qag, status was %d\n", status);
-          return(1);
+        F_local.function = dintegrand_32;
+        status_local = gsl_integration_qag (&F_local, 0., 1., int_epsabs, int_epsrel, int_limit, int_key, int_workspace_local, &int_integral_32_value, &int_integral_32_error);
+        if(status_local != 0) {
+          fprintf(stderr, "[dzeta_function] Error from qag, status was %d\n", status_local);
+          exit(1);
         }
         /* fprintf(stdout, "# [dzeta_function] integration 32 result   = %25.16e%25.16e\n", int_integral_32_value, int_integral_32_error); */
 
@@ -650,12 +705,13 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
         qtmp1 = (double)int_integral_32_value;
         qtmp2 = (double)int_integral_12_value;
 
-        for(i=0; i<l+2; i++) {
+        for(int j=0; j<l+2; j++) {
           qtmp = ( qint_iterate_const - q2 * qtmp1 + ((double)i - 1.5)  * qtmp2 ) * qr_rrInv;
           qtmp1 = qtmp2;
           qtmp2 = qtmp;
         }
         qint_integral_value = qtmp2;
+      //  printf("qint_integral_value %e\n",qint_integral_value);
         /* fprintf(stdout, "# [dzeta_function] integral value          = %25.16e\n", qint_integral_value); */
 
         /* TEST */
@@ -687,7 +743,7 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
         _DCO_EQ_CO_TI_CO(qw2, qw, qint_norm_var);
         /* fprintf(stdout, "# [dzeta_function] qw2 = %25.16e + I %25.16e\n", qw2[0], qw2[1]); */
 
-        _DKAHAN_SUM_CO_PL_CO(qterm1, qterm1c, qw2);
+        _DKAHAN_SUM_CO_PL_CO(qterm1_local, qterm1c, qw2);
 
 
         /* fprintf(stdout, "# [dzeta_function] term1 %3.0f %3.0f %3.0f \t %25.16e \t %25.16e\n", qr[0], qr[1], qr[2], qterm1[0], qterm1[1]); */
@@ -695,12 +751,20 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
 
     }  /* end of loop on rotations and reflections */
 
-  }  /* end of loop on k1 */
-  }  /* end of loop on k2 */
+  } /* end of for loop */
+  if(int_workspace_local != NULL) {
+    gsl_integration_workspace_free(int_workspace_local);
+  }
+  #pragma omp critical
+  {
+    _DKAHAN_SUM_CO_PL_CO(qterm1, qterm1c, qterm1_local);
+    _DKAHAN_SUM_CO_PL_CO(qterm2, qterm1c, qterm2_local);
+  }
+
+ 
+  } /* end parallel */
 
     /* fprintf(stdout, "# [dzeta_function] qconvergence %3d \t %25.16e \t %25.16e\n", k3, qterm2[0], qterm2[1]); */
-
-  }  /* end of loop on k3 */
 
   /* subtraction for l = 0 and m = 0 */
   if(l == 0 && m == 0) {
@@ -712,10 +776,10 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
       fprintf(stderr, "[dzeta_function] Error from qag, status was %d\n", status);
       return(1);
     }
-    qtmp = qint_l0m0_norm_const * (double)int_integral_l0m0_value + qint_l0m0_add;
+    qtmp_global = qint_l0m0_norm_const * (double)int_integral_l0m0_value + qint_l0m0_add;
     /* TEST */
     /* fprintf(stdout, "# [dzeta_function] (l=0 m=0) modified integral value %16.7e  %25.16e\n", q2, qtmp); */
-    qterm3[0] = qtmp;
+    qterm3[0] = qtmp_global;
     qterm3[1] = 0.;
   }
 
@@ -724,15 +788,17 @@ int dzeta_function (double z[2], double q2, int l, int m, int*dvec, double gamma
   }
 
   /* multiply qterm2 with exp( q2 ) */
-  qtmp = exp(  q2 );
-  _DCO_TI_EQ_RE(qterm2, qtmp);
+  qtmp_global = exp(  q2 );
+  _DCO_TI_EQ_RE(qterm2, qtmp_global);
 
   /* multiply qterm1 with constant integral normalization */
-  _DCO_EQ_CO(qw, qterm1);
-  _DCO_EQ_CO_TI_CO(qterm1, qw, qint_norm_const);
+  double qw_global[2];
+  _DCO_EQ_CO(qw_global, qterm1);
+  _DCO_EQ_CO_TI_CO(qterm1, qw_global, qint_norm_const);
 
   z[0] = qterm1[0] + qterm2[0] + qterm3[0];  
   z[1] = qterm1[1] + qterm2[1] + qterm3[1];
+  free(nvec);
   
   /* TEST */
 /*
